@@ -518,6 +518,7 @@ async function startMuxProxyServer(
     mitmCA,
     shouldTerminateTLS: shouldTerminateTLSForHost,
     filterRequest: config?.network.filterRequest,
+    interceptHeaders: config?.network?.interceptHeaders,
     onFilterRequestDenied: ({ method, url, reason, encodedCommand }) => {
       recordProxyViolation(
         `deny http-request ${method} ${redactUrlForViolation(url)} (${reason})`,

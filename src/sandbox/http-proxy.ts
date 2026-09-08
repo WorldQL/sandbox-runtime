@@ -99,6 +99,11 @@ export interface HttpProxyServerOptions {
   filterRequest?: FilterRequestCallback
 
   /**
+   * Intercept and modify headers.
+   */
+  interceptHeaders?: MutateForwardedHeaders
+
+  /**
    * Called when `filterRequest` denies a request, with the verified
    * method/URL, the decision reason, and the encodedCommand parsed from
    * the Proxy-Authorization username. Lets the manager record the deny in
@@ -487,6 +492,7 @@ export function createHttpProxyServer(options: HttpProxyServerOptions): Server {
             options.mitmCA,
             options.filterRequest,
             options.mutateHeaders,
+            options.interceptHeaders,
             options.getBodySubstitutions,
             socket,
             peeked.head,
@@ -703,7 +709,12 @@ export function createHttpProxyServer(options: HttpProxyServerOptions): Server {
         (url.port ? `:${url.port}` : '')
 
       const fwdHeaders = { ...stripHopByHop(req.headers), host: authority }
-      options.mutateHeadersPlaintext?.(fwdHeaders, hostname)
+      await options.mutateHeadersPlaintext?.(fwdHeaders, hostname)
+      if (options.interceptHeaders) {
+        const $ac = new AbortController()
+        res.once('close', () => $ac.abort())
+        await options.interceptHeaders(fwdHeaders, hostname, $ac.signal)
+      }
       // Body-substitution counterpart of mutateHeadersPlaintext (opt-in via
       // the same config gate). May delete content-length from fwdHeaders.
       const bodyTransform = prepareBodySubstitution(

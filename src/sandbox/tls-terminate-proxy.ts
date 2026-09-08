@@ -182,6 +182,7 @@ export function terminateAndForward(
   ca: MitmCA,
   filterRequest: FilterRequestCallback | undefined,
   mutateHeaders: MutateForwardedHeaders | undefined,
+  interceptHeaders: MutateForwardedHeaders | undefined,
   getBodySubstitutions: GetBodySubstitutions | undefined,
   socket: Duplex,
   head: Buffer,
@@ -223,6 +224,7 @@ export function terminateAndForward(
     forwardUpstreamGuarded(
       filterRequest,
       mutateHeaders,
+      interceptHeaders,
       getBodySubstitutions,
       req,
       res,
@@ -325,6 +327,7 @@ function forwardUpstreamGuarded(
 async function forwardUpstream(
   filterRequest: FilterRequestCallback | undefined,
   mutateHeaders: MutateForwardedHeaders | undefined,
+  interceptHeaders: MutateForwardedHeaders | undefined,
   getBodySubstitutions: GetBodySubstitutions | undefined,
   req: IncomingMessage,
   res: ServerResponse,
@@ -412,7 +415,12 @@ async function forwardUpstream(
   // The upstream TLS handshake (rejectUnauthorized defaults to true)
   // completes before any HTTP bytes are written, so mutated headers never
   // reach an unverified server.
-  mutateHeaders?.(fwdHeaders, target.hostname)
+  await mutateHeaders?.(fwdHeaders, target.hostname)
+  if (interceptHeaders) {
+    const $ac = new AbortController()
+    res.once('close', () => $ac.abort())
+    await interceptHeaders?.(fwdHeaders, target.hostname)
+  }
   // Masked-credential substitution in the request body, mirroring the
   // header substitution above. undefined → the bare pipe below, exactly as
   // before. May delete content-length from fwdHeaders (chunked fallback).
