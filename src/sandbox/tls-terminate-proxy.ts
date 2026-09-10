@@ -417,9 +417,22 @@ async function forwardUpstream(
   // reach an unverified server.
   await mutateHeaders?.(fwdHeaders, target.hostname)
   if (interceptHeaders) {
-    const $ac = new AbortController()
-    res.once('close', () => $ac.abort())
-    await interceptHeaders?.(fwdHeaders, target.hostname)
+    const ac = new AbortController()
+    const abort = () => ac.abort()
+    res.once('close', abort)
+    try {
+      await interceptHeaders(fwdHeaders, target.hostname, ac.signal)
+    } catch {
+      res.destroy()
+      body.destroy()
+      return
+    } finally {
+      res.off('close', abort)
+    }
+    if (ac.signal.aborted) {
+      body.destroy()
+      return
+    }
   }
   // Masked-credential substitution in the request body, mirroring the
   // header substitution above. undefined → the bare pipe below, exactly as

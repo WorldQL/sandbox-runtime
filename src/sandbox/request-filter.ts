@@ -53,7 +53,7 @@ export type FilterRequestCallback = (
 export type MutateForwardedHeaders = (
   headers: IncomingHttpHeaders,
   destHost: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ) => void | Promise<void>
 
 export const BODYLESS_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])

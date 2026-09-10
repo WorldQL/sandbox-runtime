@@ -4,7 +4,10 @@
  */
 
 import { isIP } from 'node:net'
-import type { FilterRequestCallback, MutateForwardedHeaders } from './request-filter.js'
+import type {
+  FilterRequestCallback,
+  MutateForwardedHeaders,
+} from './request-filter.js'
 
 import { isAbsolute } from 'node:path'
 import { z } from 'zod'
@@ -800,13 +803,14 @@ export const NetworkConfigSchema = z.object({
         'when tlsTerminate is configured, to terminated HTTPS. SRT does not ' +
         'provide a policy language; library consumers own matching.',
     ),
-  interceptHeaders: z.custom<MutateForwardedHeaders>(v => typeof v === 'function', {
-    message: 'interceptHeaders must be a function',
-  })
-  .optional()
-  .describe(
-    'Async callback that may modify headers before a request is forwarded upstream.',
-  ),
+  interceptHeaders: z
+    .custom<MutateForwardedHeaders>(v => typeof v === 'function', {
+      message: 'interceptHeaders must be a function',
+    })
+    .optional()
+    .describe(
+      'Async callback that may modify headers before a request is forwarded upstream.',
+    ),
   tlsTerminate: z
     .object({
       caCertPath: z

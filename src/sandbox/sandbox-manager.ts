@@ -388,7 +388,7 @@ async function filterNetworkRequest(
  * returned closure does not log header values; the registry holds the only
  * copy of the real value.
  */
-function buildCredentialInjector(): MutateForwardedHeaders | undefined {
+export function buildCredentialInjector(): MutateForwardedHeaders | undefined {
   if (!config?.credentials) return undefined
   return (headers, destHost) => {
     sentinelRegistry.substituteInHeaders(
@@ -404,7 +404,7 @@ function buildCredentialInjector(): MutateForwardedHeaders | undefined {
  * sentinel→real pairs for streaming substitution in request bodies, with
  * the same per-credential injectHosts gating applied inside the registry.
  */
-function buildBodyCredentialInjector(): GetBodySubstitutions | undefined {
+function _buildBodyCredentialInjector(): GetBodySubstitutions | undefined {
   if (!config?.credentials) return undefined
   return destHost =>
     sentinelRegistry.sentinelsForHost(destHost, matchesDomainPattern)
@@ -416,7 +416,7 @@ function buildBodyCredentialInjector(): GetBodySubstitutions | undefined {
  * consults {@link awsPairRegistry} at request time, so pairs registered
  * later (wrapWithSandbox runs after the proxy starts) are picked up.
  */
-function buildSigv4Planner(): PlanSigv4 | undefined {
+function _buildSigv4Planner(): PlanSigv4 | undefined {
   if (!config?.credentials) return undefined
   // Re-read the policies per request (not captured at proxy start) so an
   // updateConfig() that changes credentials.sigv4 takes effect without a
@@ -509,8 +509,6 @@ async function startMuxProxyServer(
   sandboxAskCallback: SandboxAskCallback | undefined,
   portRange: readonly [number, number] | undefined,
 ): Promise<number> {
-  const injectCredentials = buildCredentialInjector()
-  const injectBodyCredentials = buildBodyCredentialInjector()
   httpProxyServer = createHttpProxyServer({
     filter: (port, host, _socket, encodedCommand) =>
       filterNetworkRequest(port, host, sandboxAskCallback, encodedCommand),
@@ -525,20 +523,6 @@ async function startMuxProxyServer(
         encodedCommand,
       )
     },
-    // TLS-terminated path always gets the injector; the plain-HTTP path
-    // only when explicitly opted in. Without the opt-in, a sentinel sent
-    // over plain HTTP reaches the upstream unchanged (fails closed).
-    mutateHeaders: injectCredentials,
-    mutateHeadersPlaintext: config?.credentials?.allowPlaintextInject
-      ? injectCredentials
-      : undefined,
-    getBodySubstitutions: injectBodyCredentials,
-    getBodySubstitutionsPlaintext: config?.credentials?.allowPlaintextInject
-      ? injectBodyCredentials
-      : undefined,
-    // SigV4 re-signing is TLS-terminated-path only, like credential
-    // injection: the real signature must not travel over plaintext.
-    planSigv4: buildSigv4Planner(),
     parentProxy,
     proxyAuthToken,
   })

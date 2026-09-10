@@ -710,11 +710,6 @@ export function createHttpProxyServer(options: HttpProxyServerOptions): Server {
 
       const fwdHeaders = { ...stripHopByHop(req.headers), host: authority }
       await options.mutateHeadersPlaintext?.(fwdHeaders, hostname)
-      if (options.interceptHeaders) {
-        const $ac = new AbortController()
-        res.once('close', () => $ac.abort())
-        await options.interceptHeaders(fwdHeaders, hostname, $ac.signal)
-      }
       // Body-substitution counterpart of mutateHeadersPlaintext (opt-in via
       // the same config gate). May delete content-length from fwdHeaders.
       const bodyTransform = prepareBodySubstitution(
@@ -777,6 +772,25 @@ export function createHttpProxyServer(options: HttpProxyServerOptions): Server {
           req.socket.destroyed ||
           body.destroyed
         ) {
+          body.destroy()
+          return
+        }
+      }
+
+      if (options.interceptHeaders) {
+        const ac = new AbortController()
+        const abort = () => ac.abort()
+        res.once('close', abort)
+        try {
+          await options.interceptHeaders(fwdHeaders, hostname, ac.signal)
+        } catch {
+          res.destroy()
+          body.destroy()
+          return
+        } finally {
+          res.off('close', abort)
+        }
+        if (ac.signal.aborted) {
           body.destroy()
           return
         }
